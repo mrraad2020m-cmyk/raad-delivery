@@ -2,27 +2,28 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>إدارة Raad Delivery</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Raad Delivery - الإدارة</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#101010;color:#fff;font-family:Arial,sans-serif}
-header{background:#191919;padding:20px;text-align:center;border-bottom:1px solid #b89445}
+header{background:#191919;padding:18px;text-align:center;border-bottom:1px solid #c39b45}
 h1,h2{color:#d6b15c}
 main{max-width:850px;margin:auto;padding:15px}
 .card{background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:16px;margin:15px 0}
 input,textarea,select,button{width:100%;padding:12px;margin:7px 0;border-radius:7px;border:1px solid #444;background:#111;color:white;font-size:15px}
 button{background:#c39b45;color:#111;font-weight:bold;border:0;cursor:pointer}
-button.secondary{background:#333;color:white}
-button.danger{background:#9b3030;color:white}
-.item{background:#292929;padding:12px;border-radius:8px;margin:10px 0}
+.secondary{background:#333;color:white}
+.danger{background:#9b3030;color:white}
+.item{background:#292929;padding:12px;border-radius:8px;margin:10px 0;overflow:hidden}
 .item img{width:75px;height:75px;object-fit:cover;border-radius:8px;float:left}
 .row{display:flex;gap:8px}
 .row button{flex:1}
-.hidden{display:none}
+.hidden{display:none!important}
 small{color:#bbb}
-#message{padding:10px;color:#e5c36e}
+#message{padding:10px;color:#e5c36e;overflow-wrap:anywhere}
+label{display:block;margin:10px 0}
 </style>
 </head>
 <body>
@@ -34,11 +35,22 @@ small{color:#bbb}
 
 <main>
 
+<div id="message"></div>
+
 <div id="login" class="card">
 <h2>تسجيل دخول المدير</h2>
 <input id="email" type="email" placeholder="البريد الإلكتروني">
 <input id="password" type="password" placeholder="كلمة المرور">
 <button onclick="loginAdmin()">دخول</button>
+<button class="secondary" onclick="forgotPassword()">نسيت كلمة المرور؟</button>
+</div>
+
+<div id="recovery" class="card hidden">
+<h2>تعيين كلمة مرور جديدة</h2>
+<p>اكتب كلمة المرور الجديدة لحساب المدير.</p>
+<input id="newPassword" type="password" placeholder="كلمة المرور الجديدة">
+<input id="confirmPassword" type="password" placeholder="تأكيد كلمة المرور">
+<button onclick="updatePassword()">حفظ كلمة المرور</button>
 </div>
 
 <div id="panel" class="hidden">
@@ -48,16 +60,16 @@ small{color:#bbb}
 <h2 style="flex:1">لوحة التحكم</h2>
 <button style="width:auto" onclick="logout()">خروج</button>
 </div>
-<div id="message"></div>
 </div>
 
 <div class="card">
 <h2>إضافة / تعديل مطعم</h2>
 <input id="restaurantId" type="hidden">
 <input id="restaurantName" placeholder="اسم المطعم">
-<input id="restaurantSlug" placeholder="رابط المطعم (اتركه فارغاً)">
+<input id="restaurantSlug" placeholder="رابط المطعم (اختياري)">
 <textarea id="restaurantDescription" placeholder="وصف المطعم"></textarea>
 <input id="restaurantLocation" placeholder="الموقع">
+<label>صورة المطعم</label>
 <input id="restaurantImage" type="file" accept="image/*">
 <label><input id="restaurantActive" type="checkbox" checked style="width:auto"> المطعم نشط</label>
 <button onclick="saveRestaurant()">حفظ المطعم</button>
@@ -82,7 +94,8 @@ small{color:#bbb}
 <select id="productCategory"></select>
 <input id="productName" placeholder="اسم المنتج">
 <textarea id="productDescription" placeholder="وصف المنتج"></textarea>
-<input id="productPrice" type="number" step="0.01" min="0" placeholder="السعر">
+<input id="productPrice" type="number" min="0" step="0.01" placeholder="السعر">
+<label>صورة المنتج</label>
 <input id="productImage" type="file" accept="image/*">
 <label><input id="productAvailable" type="checkbox" checked style="width:auto"> المنتج متاح للطلب</label>
 <button onclick="saveProduct()">حفظ المنتج</button>
@@ -95,57 +108,125 @@ small{color:#bbb}
 </main>
 
 <script>
-const SUPABASE_URL = "https://mifvfjgyzywxglutkbrv.supabase.co";
-const SUPABASE_KEY = "sb_publishable_IBoCzsMPIPDpmQWcCoPo9A__DvfGiIc";
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL="https://mifvfjgyzywxglutkbrv.supabase.co";
+const SUPABASE_KEY="sb_publishable_IBoCzsMPIPDpmQWcCoPo9A__DvfGiIc";
 
-let restaurants = [];
-let categories = [];
-let products = [];
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-function message(text){
- document.getElementById("message").textContent=text;
+let restaurants=[];
+let categories=[];
+let products=[];
+
+function message(t){
+ document.getElementById("message").textContent=t;
+}
+
+function show(id){
+ ["login","recovery","panel"].forEach(x=>
+ document.getElementById(x).classList.add("hidden"));
+ document.getElementById(id).classList.remove("hidden");
+}
+
+function escapeHTML(v){
+ return String(v??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ })[c]);
+}
+
+function isRecoveryLink(){
+ return new URLSearchParams(location.hash.substring(1)).get("type")==="recovery";
 }
 
 async function loginAdmin(){
  const email=document.getElementById("email").value.trim();
  const password=document.getElementById("password").value;
- if(!email || !password){alert("أدخل البريد وكلمة المرور");return;}
+
+ if(!email||!password){
+  message("أدخل البريد الإلكتروني وكلمة المرور.");
+  return;
+ }
 
  message("جارٍ تسجيل الدخول...");
+
  const {data,error}=await db.auth.signInWithPassword({email,password});
- if(error){message("خطأ في الدخول: "+error.message);return;}
 
- const {data:admin,error:adminError}=await db
- .from("admin_users").select("user_id")
- .eq("user_id",data.user.id).maybeSingle();
+ if(error){
+  message("تعذر الدخول: "+error.message);
+  return;
+ }
 
- if(adminError || !admin){
+ await verifyAdmin(data.user);
+}
+
+async function verifyAdmin(user){
+ const {data,error}=await db.from("admin_users")
+  .select("user_id").eq("user_id",user.id).maybeSingle();
+
+ if(error||!data){
   await db.auth.signOut();
+  show("login");
   message("هذا الحساب ليس لديه صلاحية الإدارة.");
   return;
  }
 
- document.getElementById("login").classList.add("hidden");
- document.getElementById("panel").classList.remove("hidden");
+ show("panel");
+ message("تم تسجيل الدخول بنجاح.");
  await loadAll();
 }
 
-async function checkSession(){
- const {data}=await db.auth.getSession();
- if(!data.session)return;
+async function forgotPassword(){
+ const email=document.getElementById("email").value.trim();
 
- const user=data.session.user;
- const {data:admin}=await db.from("admin_users")
-  .select("user_id").eq("user_id",user.id).maybeSingle();
-
- if(admin){
-  document.getElementById("login").classList.add("hidden");
-  document.getElementById("panel").classList.remove("hidden");
-  await loadAll();
- }else{
-  await db.auth.signOut();
+ if(!email){
+  message("اكتب البريد الإلكتروني أولاً.");
+  return;
  }
+
+ message("جارٍ إرسال رابط الاستعادة...");
+
+ const redirectTo=location.origin+location.pathname;
+
+ const {error}=await db.auth.resetPasswordForEmail(email,{
+  redirectTo:redirectTo
+ });
+
+ if(error){
+  message("تعذر إرسال الرسالة: "+error.message);
+  return;
+ }
+
+ message("تم إرسال رابط الاستعادة إلى بريدك. افتح الرسالة واضغط الرابط.");
+}
+
+async function updatePassword(){
+ const password=document.getElementById("newPassword").value;
+ const confirm=document.getElementById("confirmPassword").value;
+
+ if(password.length<6){
+  message("كلمة المرور يجب أن تكون 6 أحرف على الأقل.");
+  return;
+ }
+
+ if(password!==confirm){
+  message("كلمتا المرور غير متطابقتين.");
+  return;
+ }
+
+ message("جارٍ تحديث كلمة المرور...");
+
+ const {error}=await db.auth.updateUser({password});
+
+ if(error){
+  message("تعذر تحديث كلمة المرور: "+error.message);
+  return;
+ }
+
+ await db.auth.signOut();
+ history.replaceState(null,"",location.pathname);
+ document.getElementById("newPassword").value="";
+ document.getElementById("confirmPassword").value="";
+ show("login");
+ message("تم تغيير كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن.");
 }
 
 async function logout(){
@@ -155,11 +236,15 @@ async function logout(){
 
 async function uploadImage(file,folder){
  if(!file)return null;
+
  const safeName=file.name.replace(/[^\w.-]/g,"_");
  const path=folder+"/"+Date.now()+"-"+safeName;
+
  const {error}=await db.storage.from("raad-images")
   .upload(path,file);
+
  if(error)throw error;
+
  const {data}=db.storage.from("raad-images").getPublicUrl(path);
  return data.publicUrl;
 }
@@ -173,16 +258,23 @@ async function loadAll(){
 async function loadRestaurants(){
  const {data,error}=await db.from("restaurants")
   .select("*").order("sort_order");
- if(error){message("خطأ المطاعم: "+error.message);return;}
+
+ if(error){
+  message("خطأ المطاعم: "+error.message);
+  return;
+ }
+
  restaurants=data||[];
 
  const options=restaurants.map(r=>
-  `<option value="${r.id}">${escapeHTML(r.name)}</option>`).join("");
+ `<option value="${r.id}">${escapeHTML(r.name)}</option>`
+ ).join("");
 
  document.getElementById("categoryRestaurant").innerHTML=options;
  document.getElementById("productRestaurant").innerHTML=options;
 
- document.getElementById("restaurantsList").innerHTML=restaurants.map(r=>`
+ document.getElementById("restaurantsList").innerHTML=
+ restaurants.map(r=>`
  <div class="item">
  ${r.image_url?`<img src="${escapeHTML(r.image_url)}">`:""}
  <b>${escapeHTML(r.name)}</b><br>
@@ -200,10 +292,12 @@ async function saveRestaurant(){
  try{
   const id=document.getElementById("restaurantId").value;
   const name=document.getElementById("restaurantName").value.trim();
-  if(!name){alert("اكتب اسم المطعم");return;}
+
+  if(!name){message("اكتب اسم المطعم.");return;}
 
   const old=restaurants.find(r=>r.id===id);
   let image_url=old?.image_url||null;
+
   const file=document.getElementById("restaurantImage").files[0];
   if(file)image_url=await uploadImage(file,"restaurants");
 
@@ -211,7 +305,8 @@ async function saveRestaurant(){
    ||old?.slug||("restaurant-"+Date.now());
 
   const record={
-   name,slug,
+   name,
+   slug,
    description:document.getElementById("restaurantDescription").value,
    location:document.getElementById("restaurantLocation").value,
    image_url,
@@ -223,21 +318,25 @@ async function saveRestaurant(){
    :await db.from("restaurants").insert(record);
 
   if(result.error)throw result.error;
+
   clearRestaurantForm();
   await loadRestaurants();
-  message("تم حفظ المطعم بنجاح");
+  message("تم حفظ المطعم بنجاح.");
+
  }catch(e){message("خطأ: "+e.message);}
 }
 
 function editRestaurant(id){
  const r=restaurants.find(x=>x.id===id);
  if(!r)return;
+
  document.getElementById("restaurantId").value=r.id;
  document.getElementById("restaurantName").value=r.name||"";
  document.getElementById("restaurantSlug").value=r.slug||"";
  document.getElementById("restaurantDescription").value=r.description||"";
  document.getElementById("restaurantLocation").value=r.location||"";
  document.getElementById("restaurantActive").checked=r.is_active;
+
  window.scrollTo(0,0);
 }
 
@@ -246,26 +345,40 @@ function clearRestaurantForm(){
  "restaurantDescription","restaurantLocation"].forEach(id=>{
   document.getElementById(id).value="";
  });
+
  document.getElementById("restaurantImage").value="";
  document.getElementById("restaurantActive").checked=true;
 }
 
 async function deleteRestaurant(id){
  if(!confirm("هل تريد حذف المطعم؟"))return;
+
  const {error}=await db.from("restaurants").delete().eq("id",id);
- if(error){message("تعذر الحذف: "+error.message);return;}
+
+ if(error){
+  message("تعذر الحذف: "+error.message);
+  return;
+ }
+
  await loadAll();
- message("تم حذف المطعم");
+ message("تم حذف المطعم.");
 }
 
 async function loadCategories(){
  const {data,error}=await db.from("menu_categories")
   .select("*").order("sort_order");
- if(error){message("خطأ الأقسام: "+error.message);return;}
+
+ if(error){
+  message("خطأ الأقسام: "+error.message);
+  return;
+ }
+
  categories=data||[];
 
- document.getElementById("categoriesList").innerHTML=categories.map(c=>{
+ document.getElementById("categoriesList").innerHTML=
+ categories.map(c=>{
   const r=restaurants.find(x=>x.id===c.restaurant_id);
+
   return `<div class="item">
   <b>${escapeHTML(c.name)}</b>
   <small> — ${escapeHTML(r?.name||"")}</small>
@@ -277,43 +390,66 @@ async function loadCategories(){
 async function addCategory(){
  const restaurant_id=document.getElementById("categoryRestaurant").value;
  const name=document.getElementById("categoryName").value.trim();
- if(!restaurant_id){alert("أضف مطعماً أولاً");return;}
- if(!name){alert("اكتب اسم القسم");return;}
+
+ if(!restaurant_id){message("أضف مطعماً أولاً.");return;}
+ if(!name){message("اكتب اسم القسم.");return;}
 
  const {error}=await db.from("menu_categories").insert({
-  restaurant_id,name,sort_order:categories.length+1
+  restaurant_id,
+  name,
+  sort_order:categories.length+1
  });
- if(error){message("خطأ: "+error.message);return;}
+
+ if(error){
+  message("خطأ: "+error.message);
+  return;
+ }
+
  document.getElementById("categoryName").value="";
  await loadCategories();
  await loadProductCategories();
- message("تمت إضافة القسم");
+ message("تمت إضافة القسم.");
 }
 
 async function deleteCategory(id){
  if(!confirm("هل تريد حذف القسم؟"))return;
+
  const {error}=await db.from("menu_categories").delete().eq("id",id);
- if(error){message("تعذر الحذف: "+error.message);return;}
+
+ if(error){
+  message("تعذر الحذف: "+error.message);
+  return;
+ }
+
  await loadCategories();
  await loadProductCategories();
- message("تم حذف القسم");
+ message("تم حذف القسم.");
 }
 
 async function loadProductCategories(){
  const restaurant_id=document.getElementById("productRestaurant").value;
+
  const list=categories.filter(c=>c.restaurant_id===restaurant_id);
- document.getElementById("productCategory").innerHTML=list.map(c=>
-  `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join("");
+
+ document.getElementById("productCategory").innerHTML=
+ list.map(c=>`<option value="${c.id}">${escapeHTML(c.name)}</option>`).join("");
 }
 
 async function loadProducts(){
  const {data,error}=await db.from("menu_items")
   .select("*").order("created_at",{ascending:false});
- if(error){message("خطأ المنتجات: "+error.message);return;}
+
+ if(error){
+  message("خطأ المنتجات: "+error.message);
+  return;
+ }
+
  products=data||[];
 
- document.getElementById("productsList").innerHTML=products.map(p=>{
+ document.getElementById("productsList").innerHTML=
+ products.map(p=>{
   const r=restaurants.find(x=>x.id===p.restaurant_id);
+
   return `<div class="item">
   ${p.image_url?`<img src="${escapeHTML(p.image_url)}">`:""}
   <b>${escapeHTML(p.name)}</b><br>
@@ -335,20 +471,29 @@ async function saveProduct(){
   const name=document.getElementById("productName").value.trim();
   const price=Number(document.getElementById("productPrice").value);
 
-  if(!restaurant_id || !category_id){alert("اختر المطعم والقسم");return;}
-  if(!name || !Number.isFinite(price) || price<0){
-   alert("أدخل اسم المنتج وسعراً صحيحاً");return;
+  if(!restaurant_id||!category_id){
+   message("اختر المطعم والقسم.");
+   return;
+  }
+
+  if(!name||!Number.isFinite(price)||price<0){
+   message("أدخل اسم المنتج وسعراً صحيحاً.");
+   return;
   }
 
   const old=products.find(p=>p.id===id);
   let image_url=old?.image_url||null;
+
   const file=document.getElementById("productImage").files[0];
   if(file)image_url=await uploadImage(file,"products");
 
   const record={
-   restaurant_id,category_id,name,
+   restaurant_id,
+   category_id,
+   name,
    description:document.getElementById("productDescription").value,
-   price,image_url,
+   price,
+   image_url,
    is_available:document.getElementById("productAvailable").checked
   };
 
@@ -357,9 +502,11 @@ async function saveProduct(){
    :await db.from("menu_items").insert(record);
 
   if(result.error)throw result.error;
+
   clearProductForm();
   await loadProducts();
-  message("تم حفظ المنتج بنجاح");
+  message("تم حفظ المنتج بنجاح.");
+
  }catch(e){message("خطأ: "+e.message);}
 }
 
@@ -369,38 +516,65 @@ function editProduct(id){
 
  document.getElementById("productId").value=p.id;
  document.getElementById("productRestaurant").value=p.restaurant_id;
+
  loadProductCategories().then(()=>{
   document.getElementById("productCategory").value=p.category_id;
  });
+
  document.getElementById("productName").value=p.name||"";
  document.getElementById("productDescription").value=p.description||"";
  document.getElementById("productPrice").value=p.price;
  document.getElementById("productAvailable").checked=p.is_available;
+
  window.scrollTo(0,document.body.scrollHeight);
 }
 
 function clearProductForm(){
  ["productId","productName","productDescription","productPrice"]
  .forEach(id=>document.getElementById(id).value="");
+
  document.getElementById("productImage").value="";
  document.getElementById("productAvailable").checked=true;
 }
 
 async function deleteProduct(id){
  if(!confirm("هل تريد حذف المنتج؟"))return;
+
  const {error}=await db.from("menu_items").delete().eq("id",id);
- if(error){message("تعذر الحذف: "+error.message);return;}
+
+ if(error){
+  message("تعذر الحذف: "+error.message);
+  return;
+ }
+
  await loadProducts();
- message("تم حذف المنتج");
+ message("تم حذف المنتج.");
 }
 
-function escapeHTML(value){
- return String(value??"").replace(/[&<>"']/g,c=>({
- "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
- })[c]);
+db.auth.onAuthStateChange(async(event,session)=>{
+ if(event==="PASSWORD_RECOVERY"){
+  show("recovery");
+  message("أدخل كلمة المرور الجديدة.");
+ }
+});
+
+async function start(){
+ if(isRecoveryLink()){
+  show("recovery");
+  message("جارٍ التحقق من رابط استعادة كلمة المرور...");
+  return;
+ }
+
+ const {data,error}=await db.auth.getSession();
+
+ if(error)return;
+
+ if(data.session){
+  await verifyAdmin(data.session.user);
+ }
 }
 
-checkSession();
+start();
 </script>
 </body>
 </html>
