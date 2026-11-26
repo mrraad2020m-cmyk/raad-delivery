@@ -6,128 +6,40 @@
 <meta name="theme-color" content="#120d08">
 <title>Raad Delivery</title>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *{box-sizing:border-box}
-body{
-margin:0;
-background:#100d09;
-color:#fff;
-font-family:Arial,sans-serif;
-}
-header{
-padding:22px 18px;
-background:#19120b;
-border-bottom:1px solid #aa843f;
-}
-.logo{
-color:#e6bd69;
-font-size:27px;
-font-weight:bold;
-}
+body{margin:0;background:#100d09;color:#fff;font-family:Arial,sans-serif}
+header{padding:22px 18px;background:#19120b;border-bottom:1px solid #aa843f}
+.logo{color:#e6bd69;font-size:27px;font-weight:bold}
 .logo span{color:white}
 header p{color:#b9a98c;font-size:13px}
 .container{padding:18px}
-.welcome{
-background:linear-gradient(120deg,#30200d,#17110b);
-padding:23px;
-border:1px solid #765b2c;
-border-radius:18px;
-margin-bottom:25px;
-}
+.welcome{background:linear-gradient(120deg,#30200d,#17110b);padding:23px;border:1px solid #765b2c;border-radius:18px;margin-bottom:25px}
 .welcome h2{color:#f0ca78;margin:0 0 10px}
 .welcome p{color:#ddd0b6;font-size:14px}
-.section-title{
-color:#e8c477;
-font-size:19px;
-margin:25px 0 15px;
-}
-.search{
-width:100%;
-padding:15px;
-border-radius:12px;
-border:1px solid #544329;
-background:#201910;
-color:white;
-font-size:15px;
-}
-.restaurants{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:13px;
-}
-.restaurant{
-background:#201910;
-border:1px solid #44351f;
-border-radius:14px;
-overflow:hidden;
-cursor:pointer;
-}
-.restaurant img{
-width:100%;
-height:115px;
-object-fit:cover;
-}
-.restaurant h3{
-margin:10px;
-font-size:15px;
-}
-.restaurant p{
-margin:0 10px 12px;
-font-size:12px;
-color:#c5ad7d;
-}
-.products{
-display:grid;
-grid-template-columns:1fr 1fr;
-gap:12px;
-}
-.product{
-background:#201910;
-border:1px solid #49391f;
-border-radius:14px;
-overflow:hidden;
-}
-.product img{
-width:100%;
-height:125px;
-object-fit:cover;
-}
+.section-title{color:#e8c477;font-size:19px;margin:25px 0 15px}
+.search,.field{width:100%;padding:15px;border-radius:12px;border:1px solid #544329;background:#201910;color:white;font-size:15px;margin-bottom:12px}
+.restaurants,.products{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.restaurant,.product{background:#201910;border:1px solid #44351f;border-radius:14px;overflow:hidden}
+.restaurant{cursor:pointer}
+.restaurant img,.product img{width:100%;height:125px;object-fit:cover}
+.restaurant h3{margin:10px;font-size:15px}
+.restaurant p{margin:0 10px 12px;font-size:12px;color:#c5ad7d}
 .product-info{padding:11px}
 .product h3{font-size:14px;margin:0 0 8px}
 .price{color:#eac477;font-weight:bold}
-.add{
-width:100%;
-margin-top:10px;
-padding:10px;
-border:0;
-border-radius:9px;
-background:#c69b4d;
-color:#160f06;
-font-weight:bold;
-}
-.cart{
-position:fixed;
-bottom:0;
-left:0;
-right:0;
-background:#21180e;
-border-top:1px solid #b48a42;
-padding:14px 18px;
-display:flex;
-justify-content:space-between;
-align-items:center;
-}
-.cart button{
-background:#d3aa5c;
-border:0;
-padding:12px 20px;
-border-radius:10px;
-font-weight:bold;
-}
-.hidden{display:none}
-footer{
-height:85px;
-}
+.add{width:100%;margin-top:10px;padding:10px;border:0;border-radius:9px;background:#c69b4d;color:#160f06;font-weight:bold}
+.cart{position:fixed;bottom:0;left:0;right:0;background:#21180e;border-top:1px solid #b48a42;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;z-index:10}
+.cart button,.main-btn{background:#d3aa5c;border:0;padding:12px 20px;border-radius:10px;font-weight:bold;color:#160f06}
+.hidden{display:none!important}
+footer{height:100px}
+.message{padding:12px;background:#21180e;border:1px solid #765b2c;border-radius:10px;margin:12px 0;color:#eac477}
+.form-box{background:#201910;border:1px solid #49391f;border-radius:14px;padding:15px;margin-top:20px}
+.form-box h3{color:#eac477}
+.main-btn{width:100%;margin-top:10px}
+.empty{text-align:center;color:#c5ad7d;padding:25px;grid-column:1/-1}
 </style>
 </head>
 
@@ -145,72 +57,32 @@ height:85px;
 <p>اختر مطعمك المفضل واطلب وجبتك بكل سهولة.</p>
 </div>
 
+<div id="status" class="message">جاري الاتصال...</div>
+
 <input class="search" id="search"
 placeholder="ابحث عن مطعم أو وجبة..."
 oninput="searchItems()">
 
 <h2 class="section-title">المطاعم</h2>
-
-<div class="restaurants" id="restaurants">
-
-<div class="restaurant" onclick="showMenu()">
-<img src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=500">
-<h3>مطعم تجريبي</h3>
-<p>وجبات ومأكولات متنوعة</p>
-</div>
-
-<div class="restaurant" onclick="showMenu()">
-<img src="https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500">
-<h3>مطعم جديد</h3>
-<p>أشهى الوجبات</p>
-</div>
-
-</div>
+<div class="restaurants" id="restaurants"></div>
 
 <div id="menu" class="hidden">
-
-<h2 class="section-title">قائمة الطعام</h2>
-
-<div class="products">
-
-<div class="product">
-<img src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500">
-<div class="product-info">
-<h3>برجر لحم</h3>
-<div class="price">25 ريال</div>
-<button class="add" onclick="addCart('برجر لحم',25)">إضافة للسلة</button>
-</div>
+<h2 class="section-title" id="restaurantTitle">قائمة الطعام</h2>
+<button class="main-btn" onclick="backRestaurants()">العودة للمطاعم</button>
+<div class="products" id="products"></div>
 </div>
 
-<div class="product">
-<img src="https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500">
-<div class="product-info">
-<h3>بيتزا</h3>
-<div class="price">30 ريال</div>
-<button class="add" onclick="addCart('بيتزا',30)">إضافة للسلة</button>
-</div>
+<div id="checkoutBox" class="form-box hidden">
+<h3>بيانات التوصيل</h3>
+
+<input class="field" id="customerName" placeholder="الاسم الكامل">
+<input class="field" id="customerPhone" placeholder="رقم الجوال">
+<input class="field" id="customerAddress" placeholder="العنوان بالتفصيل">
+
+<button class="main-btn" onclick="sendOrder()">تأكيد وإرسال الطلب</button>
+<button class="main-btn" style="background:#555;color:white" onclick="closeCheckout()">إلغاء</button>
 </div>
 
-<div class="product">
-<img src="https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=500">
-<div class="product-info">
-<h3>بطاطس</h3>
-<div class="price">8 ريال</div>
-<button class="add" onclick="addCart('بطاطس',8)">إضافة للسلة</button>
-</div>
-</div>
-
-<div class="product">
-<img src="https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=500">
-<div class="product-info">
-<h3>وجبة دجاج</h3>
-<div class="price">22 ريال</div>
-<button class="add" onclick="addCart('وجبة دجاج',22)">إضافة للسلة</button>
-</div>
-</div>
-
-</div>
-</div>
 <footer></footer>
 </div>
 
@@ -220,45 +92,278 @@ oninput="searchItems()">
 <br>
 <strong id="total">0 ريال</strong>
 </div>
-<button onclick="checkout()">عرض الطلب</button>
+<button onclick="checkout()">إتمام الطلب</button>
 </div>
 
 <script>
-let count=0;
-let total=0;
-let items=[];
+const SUPABASE_URL = 'https://mifvfjgyzywxglutkbrv.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_IBoCzsMPIPDpmQWcCoPo9A__DvfGiIc';
 
-function showMenu(){
-document.getElementById('menu').classList.remove('hidden');
-document.getElementById('menu').scrollIntoView({behavior:'smooth'});
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let restaurants = [];
+let products = [];
+let items = [];
+let selectedRestaurant = null;
+let customer = null;
+
+function showStatus(message){
+    document.getElementById('status').textContent = message;
 }
 
-function addCart(name,price){
-count++;
-total+=price;
-items.push(name);
-document.getElementById('count').textContent=count;
-document.getElementById('total').textContent=total+' ريال';
+async function startApp(){
+    try{
+        let {data:{session},error} = await db.auth.getSession();
+        if(error) throw error;
+
+        if(!session){
+            const result = await db.auth.signInAnonymously();
+            if(result.error) throw result.error;
+        }
+
+        customer = (await db.auth.getSession()).data.session.user;
+
+        showStatus('تم الاتصال بنجاح. اختر مطعمك المفضل.');
+        loadRestaurants();
+
+        document.getElementById('customerName').value =
+            localStorage.getItem('customerName') || '';
+
+        document.getElementById('customerPhone').value =
+            localStorage.getItem('customerPhone') || '';
+
+        document.getElementById('customerAddress').value =
+            localStorage.getItem('customerAddress') || '';
+
+    }catch(error){
+        console.error(error);
+        showStatus('تعذر الاتصال: ' + error.message);
+    }
+}
+
+async function loadRestaurants(){
+    const box = document.getElementById('restaurants');
+    box.innerHTML = '<div class="empty">جاري تحميل المطاعم...</div>';
+
+    const {data,error} = await db
+        .from('restaurants')
+        .select('id,name,description,image_url')
+        .eq('is_active',true)
+        .order('sort_order');
+
+    if(error){
+        box.innerHTML = '<div class="empty">حدث خطأ أثناء تحميل المطاعم.</div>';
+        console.error(error);
+        return;
+    }
+
+    restaurants = data || [];
+    box.innerHTML = '';
+
+    if(!restaurants.length){
+        box.innerHTML = '<div class="empty">لا توجد مطاعم متاحة حالياً.</div>';
+        return;
+    }
+
+    restaurants.forEach(restaurant=>{
+        const card = document.createElement('div');
+        card.className = 'restaurant';
+
+        const img = document.createElement('img');
+        img.src = restaurant.image_url || '';
+        img.alt = restaurant.name;
+
+        const title = document.createElement('h3');
+        title.textContent = restaurant.name;
+
+        const description = document.createElement('p');
+        description.textContent = restaurant.description || 'وجبات متنوعة';
+
+        card.append(img,title,description);
+        card.onclick = ()=>showMenu(restaurant);
+
+        box.appendChild(card);
+    });
+}
+
+async function showMenu(restaurant){
+    selectedRestaurant = restaurant;
+
+    document.getElementById('restaurantTitle').textContent =
+        restaurant.name;
+
+    document.getElementById('menu').classList.remove('hidden');
+    document.getElementById('restaurants').classList.add('hidden');
+
+    const box = document.getElementById('products');
+    box.innerHTML = '<div class="empty">جاري تحميل القائمة...</div>';
+
+    const {data,error} = await db
+        .from('menu_items')
+        .select('id,name,description,price,image_url,is_available')
+        .eq('restaurant_id',restaurant.id)
+        .eq('is_available',true)
+        .order('created_at');
+
+    if(error){
+        box.innerHTML = '<div class="empty">تعذر تحميل المنتجات.</div>';
+        console.error(error);
+        return;
+    }
+
+    products = data || [];
+    box.innerHTML = '';
+
+    if(!products.length){
+        box.innerHTML = '<div class="empty">لا توجد منتجات متاحة حالياً.</div>';
+        return;
+    }
+
+    products.forEach(product=>{
+        const card = document.createElement('div');
+        card.className = 'product';
+
+        const img = document.createElement('img');
+        img.src = product.image_url || '';
+        img.alt = product.name;
+
+        const info = document.createElement('div');
+        info.className = 'product-info';
+
+        const title = document.createElement('h3');
+        title.textContent = product.name;
+
+        const price = document.createElement('div');
+        price.className = 'price';
+        price.textContent = product.price + ' ريال';
+
+        const button = document.createElement('button');
+        button.className = 'add';
+        button.textContent = 'إضافة للسلة';
+        button.onclick = ()=>addCart(product);
+
+        info.append(title,price,button);
+        card.append(img,info);
+        box.appendChild(card);
+    });
+}
+
+function backRestaurants(){
+    document.getElementById('menu').classList.add('hidden');
+    document.getElementById('restaurants').classList.remove('hidden');
+}
+
+function addCart(product){
+    const existing = items.find(item=>item.id === product.id);
+
+    if(existing){
+        existing.quantity++;
+    }else{
+        items.push({
+            id:product.id,
+            name:product.name,
+            price:Number(product.price),
+            quantity:1
+        });
+    }
+
+    updateCart();
+}
+
+function updateCart(){
+    let count = 0;
+    let total = 0;
+
+    items.forEach(item=>{
+        count += item.quantity;
+        total += item.price * item.quantity;
+    });
+
+    document.getElementById('count').textContent = count;
+    document.getElementById('total').textContent =
+        total.toFixed(2) + ' ريال';
 }
 
 function checkout(){
-if(count===0){
-alert('السلة فارغة');
-return;
+    if(items.length === 0){
+        alert('السلة فارغة');
+        return;
+    }
+
+    document.getElementById('checkoutBox').classList.remove('hidden');
+    document.getElementById('checkoutBox').scrollIntoView({
+        behavior:'smooth'
+    });
 }
-alert(
-'تفاصيل طلبك:\\n'+
-items.join('\\n')+
-'\\n\\nالإجمالي: '+total+' ريال'
-);
+
+function closeCheckout(){
+    document.getElementById('checkoutBox').classList.add('hidden');
+}
+
+async function sendOrder(){
+    if(!customer){
+        alert('انتظر حتى يتم الاتصال بالتطبيق.');
+        return;
+    }
+
+    const name = document.getElementById('customerName').value.trim();
+    const phone = document.getElementById('customerPhone').value.trim();
+    const address = document.getElementById('customerAddress').value.trim();
+
+    if(!name || !phone || !address){
+        alert('يرجى إدخال جميع بيانات التوصيل.');
+        return;
+    }
+
+    const button = document.querySelector('#checkoutBox .main-btn');
+
+    button.disabled = true;
+    button.textContent = 'جاري إرسال الطلب...';
+
+    try{
+        const orderItems = items.map(item=>({
+            menu_item_id:item.id,
+            quantity:item.quantity
+        }));
+
+        const {data,error} = await db.rpc('create_customer_order',{
+            p_customer_name:name,
+            p_customer_phone:phone,
+            p_delivery_address:address,
+            p_items:orderItems
+        });
+
+        if(error) throw error;
+
+        localStorage.setItem('customerName',name);
+        localStorage.setItem('customerPhone',phone);
+        localStorage.setItem('customerAddress',address);
+
+        alert('تم إرسال طلبك بنجاح! رقم الطلب: ' + data);
+
+        items = [];
+        updateCart();
+        closeCheckout();
+        showStatus('تم إرسال طلبك بنجاح.');
+
+    }catch(error){
+        console.error(error);
+        alert('تعذر إرسال الطلب: ' + error.message);
+    }
+
+    button.disabled = false;
+    button.textContent = 'تأكيد وإرسال الطلب';
 }
 
 function searchItems(){
-let q=document.getElementById('search').value;
-document.querySelectorAll('.restaurant').forEach(el=>{
-el.style.display=el.innerText.includes(q)?'block':'none';
-});
+    const q = document.getElementById('search').value.trim();
+
+    document.querySelectorAll('.restaurant').forEach(card=>{
+        card.style.display = card.innerText.includes(q) ? '' : 'none';
+    });
 }
+
+startApp();
 </script>
 
 </body>
