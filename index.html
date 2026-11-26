@@ -35,11 +35,12 @@ header p{color:#b9a98c;font-size:13px}
 .cart button,.main-btn{background:#d3aa5c;border:0;padding:12px 20px;border-radius:10px;font-weight:bold;color:#160f06}
 .hidden{display:none!important}
 footer{height:100px}
-.message{padding:12px;background:#21180e;border:1px solid #765b2c;border-radius:10px;margin:12px 0;color:#eac477}
+.message{padding:12px;background:#21180e;border:1px solid #765b2c;border-radius:10px;margin:12px 0;color:#eac477;overflow-wrap:anywhere}
 .form-box{background:#201910;border:1px solid #49391f;border-radius:14px;padding:15px;margin-top:20px}
 .form-box h3{color:#eac477}
 .main-btn{width:100%;margin-top:10px}
-.empty{text-align:center;color:#c5ad7d;padding:25px;grid-column:1/-1}
+.main-btn:disabled{opacity:.5}
+.empty{text-align:center;color:#c5ad7d;padding:25px;grid-column:1/-1;overflow-wrap:anywhere}
 </style>
 </head>
 
@@ -111,20 +112,36 @@ function showStatus(message){
     document.getElementById('status').textContent = message;
 }
 
+function showError(box,message){
+    box.innerHTML = '';
+    const errorBox = document.createElement('div');
+    errorBox.className = 'empty';
+    errorBox.textContent = 'خطأ: ' + message;
+    box.appendChild(errorBox);
+}
+
 async function startApp(){
     try{
-        let {data:{session},error} = await db.auth.getSession();
+        const {data,error} = await db.auth.getSession();
+
         if(error) throw error;
 
-        if(!session){
+        if(!data.session){
             const result = await db.auth.signInAnonymously();
             if(result.error) throw result.error;
         }
 
-        customer = (await db.auth.getSession()).data.session.user;
+        const sessionResult = await db.auth.getSession();
+
+        if(sessionResult.error) throw sessionResult.error;
+
+        customer = sessionResult.data.session?.user;
+
+        if(!customer){
+            throw new Error('لم يتم إنشاء جلسة العميل.');
+        }
 
         showStatus('تم الاتصال بنجاح. اختر مطعمك المفضل.');
-        loadRestaurants();
 
         document.getElementById('customerName').value =
             localStorage.getItem('customerName') || '';
@@ -135,8 +152,10 @@ async function startApp(){
         document.getElementById('customerAddress').value =
             localStorage.getItem('customerAddress') || '';
 
+        await loadRestaurants();
+
     }catch(error){
-        console.error(error);
+        console.error('Connection error:',error);
         showStatus('تعذر الاتصال: ' + error.message);
     }
 }
@@ -145,45 +164,50 @@ async function loadRestaurants(){
     const box = document.getElementById('restaurants');
     box.innerHTML = '<div class="empty">جاري تحميل المطاعم...</div>';
 
-    const {data,error} = await db
-        .from('restaurants')
-        .select('id,name,description,image_url')
-        .eq('is_active',true)
-        .order('sort_order');
+    try{
+        const {data,error} = await db
+            .from('restaurants')
+            .select('id,name,description,image_url')
+            .eq('is_active',true)
+            .order('sort_order');
 
-    if(error){
-        box.innerHTML = '<div class="empty">حدث خطأ أثناء تحميل المطاعم.</div>';
-        console.error(error);
-        return;
+        if(error) throw error;
+
+        restaurants = data || [];
+        box.innerHTML = '';
+
+        if(!restaurants.length){
+            box.innerHTML =
+                '<div class="empty">لا توجد مطاعم متاحة حالياً.</div>';
+            return;
+        }
+
+        restaurants.forEach(restaurant=>{
+            const card = document.createElement('div');
+            card.className = 'restaurant';
+
+            const img = document.createElement('img');
+            img.src = restaurant.image_url || '';
+            img.alt = restaurant.name;
+
+            const title = document.createElement('h3');
+            title.textContent = restaurant.name;
+
+            const description = document.createElement('p');
+            description.textContent =
+                restaurant.description || 'وجبات متنوعة';
+
+            card.append(img,title,description);
+            card.onclick = ()=>showMenu(restaurant);
+
+            box.appendChild(card);
+        });
+
+    }catch(error){
+        console.error('Restaurants error:',error);
+        showError(box,error.message);
+        showStatus('حدث خطأ أثناء قراءة بيانات المطاعم.');
     }
-
-    restaurants = data || [];
-    box.innerHTML = '';
-
-    if(!restaurants.length){
-        box.innerHTML = '<div class="empty">لا توجد مطاعم متاحة حالياً.</div>';
-        return;
-    }
-
-    restaurants.forEach(restaurant=>{
-        const card = document.createElement('div');
-        card.className = 'restaurant';
-
-        const img = document.createElement('img');
-        img.src = restaurant.image_url || '';
-        img.alt = restaurant.name;
-
-        const title = document.createElement('h3');
-        title.textContent = restaurant.name;
-
-        const description = document.createElement('p');
-        description.textContent = restaurant.description || 'وجبات متنوعة';
-
-        card.append(img,title,description);
-        card.onclick = ()=>showMenu(restaurant);
-
-        box.appendChild(card);
-    });
 }
 
 async function showMenu(restaurant){
@@ -198,54 +222,57 @@ async function showMenu(restaurant){
     const box = document.getElementById('products');
     box.innerHTML = '<div class="empty">جاري تحميل القائمة...</div>';
 
-    const {data,error} = await db
-        .from('menu_items')
-        .select('id,name,description,price,image_url,is_available')
-        .eq('restaurant_id',restaurant.id)
-        .eq('is_available',true)
-        .order('created_at');
+    try{
+        const {data,error} = await db
+            .from('menu_items')
+            .select('id,name,description,price,image_url,is_available')
+            .eq('restaurant_id',restaurant.id)
+            .eq('is_available',true)
+            .order('created_at');
 
-    if(error){
-        box.innerHTML = '<div class="empty">تعذر تحميل المنتجات.</div>';
-        console.error(error);
-        return;
+        if(error) throw error;
+
+        products = data || [];
+        box.innerHTML = '';
+
+        if(!products.length){
+            box.innerHTML =
+                '<div class="empty">لا توجد منتجات متاحة حالياً.</div>';
+            return;
+        }
+
+        products.forEach(product=>{
+            const card = document.createElement('div');
+            card.className = 'product';
+
+            const img = document.createElement('img');
+            img.src = product.image_url || '';
+            img.alt = product.name;
+
+            const info = document.createElement('div');
+            info.className = 'product-info';
+
+            const title = document.createElement('h3');
+            title.textContent = product.name;
+
+            const price = document.createElement('div');
+            price.className = 'price';
+            price.textContent = product.price + ' ريال';
+
+            const button = document.createElement('button');
+            button.className = 'add';
+            button.textContent = 'إضافة للسلة';
+            button.onclick = ()=>addCart(product);
+
+            info.append(title,price,button);
+            card.append(img,info);
+            box.appendChild(card);
+        });
+
+    }catch(error){
+        console.error('Products error:',error);
+        showError(box,error.message);
     }
-
-    products = data || [];
-    box.innerHTML = '';
-
-    if(!products.length){
-        box.innerHTML = '<div class="empty">لا توجد منتجات متاحة حالياً.</div>';
-        return;
-    }
-
-    products.forEach(product=>{
-        const card = document.createElement('div');
-        card.className = 'product';
-
-        const img = document.createElement('img');
-        img.src = product.image_url || '';
-        img.alt = product.name;
-
-        const info = document.createElement('div');
-        info.className = 'product-info';
-
-        const title = document.createElement('h3');
-        title.textContent = product.name;
-
-        const price = document.createElement('div');
-        price.className = 'price';
-        price.textContent = product.price + ' ريال';
-
-        const button = document.createElement('button');
-        button.className = 'add';
-        button.textContent = 'إضافة للسلة';
-        button.onclick = ()=>addCart(product);
-
-        info.append(title,price,button);
-        card.append(img,info);
-        box.appendChild(card);
-    });
 }
 
 function backRestaurants(){
@@ -254,6 +281,13 @@ function backRestaurants(){
 }
 
 function addCart(product){
+    if(selectedRestaurant && items.length){
+        if(items[0].restaurantId !== selectedRestaurant.id){
+            alert('يرجى إكمال طلب المطعم الحالي قبل اختيار مطعم آخر.');
+            return;
+        }
+    }
+
     const existing = items.find(item=>item.id === product.id);
 
     if(existing){
@@ -263,7 +297,8 @@ function addCart(product){
             id:product.id,
             name:product.name,
             price:Number(product.price),
-            quantity:1
+            quantity:1,
+            restaurantId:selectedRestaurant.id
         });
     }
 
@@ -347,19 +382,20 @@ async function sendOrder(){
         showStatus('تم إرسال طلبك بنجاح.');
 
     }catch(error){
-        console.error(error);
+        console.error('Order error:',error);
         alert('تعذر إرسال الطلب: ' + error.message);
+    }finally{
+        button.disabled = false;
+        button.textContent = 'تأكيد وإرسال الطلب';
     }
-
-    button.disabled = false;
-    button.textContent = 'تأكيد وإرسال الطلب';
 }
 
 function searchItems(){
     const q = document.getElementById('search').value.trim();
 
     document.querySelectorAll('.restaurant').forEach(card=>{
-        card.style.display = card.innerText.includes(q) ? '' : 'none';
+        card.style.display =
+            card.innerText.includes(q) ? '' : 'none';
     });
 }
 
