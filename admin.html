@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>إدارة Raad Delivery</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101010;color:#fff;font-family:Arial,sans-serif}
+header{background:#191919;padding:20px;text-align:center;border-bottom:1px solid #b89445}
+h1,h2{color:#d6b15c}
+main{max-width:850px;margin:auto;padding:15px}
+.card{background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:16px;margin:15px 0}
+input,textarea,select,button{width:100%;padding:12px;margin:7px 0;border-radius:7px;border:1px solid #444;background:#111;color:white;font-size:15px}
+button{background:#c39b45;color:#111;font-weight:bold;border:0;cursor:pointer}
+button.secondary{background:#333;color:white}
+button.danger{background:#9b3030;color:white}
+.item{background:#292929;padding:12px;border-radius:8px;margin:10px 0}
+.item img{width:75px;height:75px;object-fit:cover;border-radius:8px;float:left}
+.row{display:flex;gap:8px}
+.row button{flex:1}
+.hidden{display:none}
+small{color:#bbb}
+#message{padding:10px;color:#e5c36e}
+</style>
+</head>
+<body>
+
+<header>
+<h1>Raad Delivery</h1>
+<p>لوحة إدارة المطاعم والمنتجات</p>
+</header>
+
+<main>
+
+<div id="login" class="card">
+<h2>تسجيل دخول المدير</h2>
+<input id="email" type="email" placeholder="البريد الإلكتروني">
+<input id="password" type="password" placeholder="كلمة المرور">
+<button onclick="loginAdmin()">دخول</button>
+</div>
+
+<div id="panel" class="hidden">
+
+<div class="card">
+<div class="row">
+<h2 style="flex:1">لوحة التحكم</h2>
+<button style="width:auto" onclick="logout()">خروج</button>
+</div>
+<div id="message"></div>
+</div>
+
+<div class="card">
+<h2>إضافة / تعديل مطعم</h2>
+<input id="restaurantId" type="hidden">
+<input id="restaurantName" placeholder="اسم المطعم">
+<input id="restaurantSlug" placeholder="رابط المطعم (اتركه فارغاً)">
+<textarea id="restaurantDescription" placeholder="وصف المطعم"></textarea>
+<input id="restaurantLocation" placeholder="الموقع">
+<input id="restaurantImage" type="file" accept="image/*">
+<label><input id="restaurantActive" type="checkbox" checked style="width:auto"> المطعم نشط</label>
+<button onclick="saveRestaurant()">حفظ المطعم</button>
+<button class="secondary" onclick="clearRestaurantForm()">إلغاء التعديل</button>
+<h3>المطاعم الحالية</h3>
+<div id="restaurantsList"></div>
+</div>
+
+<div class="card">
+<h2>إضافة قسم طعام</h2>
+<select id="categoryRestaurant"></select>
+<input id="categoryName" placeholder="اسم القسم">
+<button onclick="addCategory()">إضافة القسم</button>
+<h3>الأقسام الحالية</h3>
+<div id="categoriesList"></div>
+</div>
+
+<div class="card">
+<h2>إضافة / تعديل منتج</h2>
+<input id="productId" type="hidden">
+<select id="productRestaurant" onchange="loadProductCategories()"></select>
+<select id="productCategory"></select>
+<input id="productName" placeholder="اسم المنتج">
+<textarea id="productDescription" placeholder="وصف المنتج"></textarea>
+<input id="productPrice" type="number" step="0.01" min="0" placeholder="السعر">
+<input id="productImage" type="file" accept="image/*">
+<label><input id="productAvailable" type="checkbox" checked style="width:auto"> المنتج متاح للطلب</label>
+<button onclick="saveProduct()">حفظ المنتج</button>
+<button class="secondary" onclick="clearProductForm()">إلغاء التعديل</button>
+<h3>المنتجات الحالية</h3>
+<div id="productsList"></div>
+</div>
+
+</div>
+</main>
+
+<script>
+const SUPABASE_URL = "https://mifvfjgyzywxglutkbrv.supabase.co";
+const SUPABASE_KEY = "sb_publishable_IBoCzsMPIPDpmQWcCoPo9A__DvfGiIc";
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let restaurants = [];
+let categories = [];
+let products = [];
+
+function message(text){
+ document.getElementById("message").textContent=text;
+}
+
+async function loginAdmin(){
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ if(!email || !password){alert("أدخل البريد وكلمة المرور");return;}
+
+ message("جارٍ تسجيل الدخول...");
+ const {data,error}=await db.auth.signInWithPassword({email,password});
+ if(error){message("خطأ في الدخول: "+error.message);return;}
+
+ const {data:admin,error:adminError}=await db
+ .from("admin_users").select("user_id")
+ .eq("user_id",data.user.id).maybeSingle();
+
+ if(adminError || !admin){
+  await db.auth.signOut();
+  message("هذا الحساب ليس لديه صلاحية الإدارة.");
+  return;
+ }
+
+ document.getElementById("login").classList.add("hidden");
+ document.getElementById("panel").classList.remove("hidden");
+ await loadAll();
+}
+
+async function checkSession(){
+ const {data}=await db.auth.getSession();
+ if(!data.session)return;
+
+ const user=data.session.user;
+ const {data:admin}=await db.from("admin_users")
+  .select("user_id").eq("user_id",user.id).maybeSingle();
+
+ if(admin){
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("panel").classList.remove("hidden");
+  await loadAll();
+ }else{
+  await db.auth.signOut();
+ }
+}
+
+async function logout(){
+ await db.auth.signOut();
+ location.reload();
+}
+
+async function uploadImage(file,folder){
+ if(!file)return null;
+ const safeName=file.name.replace(/[^\w.-]/g,"_");
+ const path=folder+"/"+Date.now()+"-"+safeName;
+ const {error}=await db.storage.from("raad-images")
+  .upload(path,file);
+ if(error)throw error;
+ const {data}=db.storage.from("raad-images").getPublicUrl(path);
+ return data.publicUrl;
+}
+
+async function loadAll(){
+ await loadRestaurants();
+ await loadCategories();
+ await loadProducts();
+}
+
+async function loadRestaurants(){
+ const {data,error}=await db.from("restaurants")
+  .select("*").order("sort_order");
+ if(error){message("خطأ المطاعم: "+error.message);return;}
+ restaurants=data||[];
+
+ const options=restaurants.map(r=>
+  `<option value="${r.id}">${escapeHTML(r.name)}</option>`).join("");
+
+ document.getElementById("categoryRestaurant").innerHTML=options;
+ document.getElementById("productRestaurant").innerHTML=options;
+
+ document.getElementById("restaurantsList").innerHTML=restaurants.map(r=>`
+ <div class="item">
+ ${r.image_url?`<img src="${escapeHTML(r.image_url)}">`:""}
+ <b>${escapeHTML(r.name)}</b><br>
+ <small>${r.is_active?"نشط":"غير نشط"}</small>
+ <div class="row">
+ <button onclick="editRestaurant('${r.id}')">تعديل</button>
+ <button class="danger" onclick="deleteRestaurant('${r.id}')">حذف</button>
+ </div>
+ </div>`).join("");
+
+ await loadProductCategories();
+}
+
+async function saveRestaurant(){
+ try{
+  const id=document.getElementById("restaurantId").value;
+  const name=document.getElementById("restaurantName").value.trim();
+  if(!name){alert("اكتب اسم المطعم");return;}
+
+  const old=restaurants.find(r=>r.id===id);
+  let image_url=old?.image_url||null;
+  const file=document.getElementById("restaurantImage").files[0];
+  if(file)image_url=await uploadImage(file,"restaurants");
+
+  const slug=document.getElementById("restaurantSlug").value.trim()
+   ||old?.slug||("restaurant-"+Date.now());
+
+  const record={
+   name,slug,
+   description:document.getElementById("restaurantDescription").value,
+   location:document.getElementById("restaurantLocation").value,
+   image_url,
+   is_active:document.getElementById("restaurantActive").checked
+  };
+
+  const result=id
+   ?await db.from("restaurants").update(record).eq("id",id)
+   :await db.from("restaurants").insert(record);
+
+  if(result.error)throw result.error;
+  clearRestaurantForm();
+  await loadRestaurants();
+  message("تم حفظ المطعم بنجاح");
+ }catch(e){message("خطأ: "+e.message);}
+}
+
+function editRestaurant(id){
+ const r=restaurants.find(x=>x.id===id);
+ if(!r)return;
+ document.getElementById("restaurantId").value=r.id;
+ document.getElementById("restaurantName").value=r.name||"";
+ document.getElementById("restaurantSlug").value=r.slug||"";
+ document.getElementById("restaurantDescription").value=r.description||"";
+ document.getElementById("restaurantLocation").value=r.location||"";
+ document.getElementById("restaurantActive").checked=r.is_active;
+ window.scrollTo(0,0);
+}
+
+function clearRestaurantForm(){
+ ["restaurantId","restaurantName","restaurantSlug",
+ "restaurantDescription","restaurantLocation"].forEach(id=>{
+  document.getElementById(id).value="";
+ });
+ document.getElementById("restaurantImage").value="";
+ document.getElementById("restaurantActive").checked=true;
+}
+
+async function deleteRestaurant(id){
+ if(!confirm("هل تريد حذف المطعم؟"))return;
+ const {error}=await db.from("restaurants").delete().eq("id",id);
+ if(error){message("تعذر الحذف: "+error.message);return;}
+ await loadAll();
+ message("تم حذف المطعم");
+}
+
+async function loadCategories(){
+ const {data,error}=await db.from("menu_categories")
+  .select("*").order("sort_order");
+ if(error){message("خطأ الأقسام: "+error.message);return;}
+ categories=data||[];
+
+ document.getElementById("categoriesList").innerHTML=categories.map(c=>{
+  const r=restaurants.find(x=>x.id===c.restaurant_id);
+  return `<div class="item">
+  <b>${escapeHTML(c.name)}</b>
+  <small> — ${escapeHTML(r?.name||"")}</small>
+  <button class="danger" onclick="deleteCategory('${c.id}')">حذف القسم</button>
+  </div>`;
+ }).join("");
+}
+
+async function addCategory(){
+ const restaurant_id=document.getElementById("categoryRestaurant").value;
+ const name=document.getElementById("categoryName").value.trim();
+ if(!restaurant_id){alert("أضف مطعماً أولاً");return;}
+ if(!name){alert("اكتب اسم القسم");return;}
+
+ const {error}=await db.from("menu_categories").insert({
+  restaurant_id,name,sort_order:categories.length+1
+ });
+ if(error){message("خطأ: "+error.message);return;}
+ document.getElementById("categoryName").value="";
+ await loadCategories();
+ await loadProductCategories();
+ message("تمت إضافة القسم");
+}
+
+async function deleteCategory(id){
+ if(!confirm("هل تريد حذف القسم؟"))return;
+ const {error}=await db.from("menu_categories").delete().eq("id",id);
+ if(error){message("تعذر الحذف: "+error.message);return;}
+ await loadCategories();
+ await loadProductCategories();
+ message("تم حذف القسم");
+}
+
+async function loadProductCategories(){
+ const restaurant_id=document.getElementById("productRestaurant").value;
+ const list=categories.filter(c=>c.restaurant_id===restaurant_id);
+ document.getElementById("productCategory").innerHTML=list.map(c=>
+  `<option value="${c.id}">${escapeHTML(c.name)}</option>`).join("");
+}
+
+async function loadProducts(){
+ const {data,error}=await db.from("menu_items")
+  .select("*").order("created_at",{ascending:false});
+ if(error){message("خطأ المنتجات: "+error.message);return;}
+ products=data||[];
+
+ document.getElementById("productsList").innerHTML=products.map(p=>{
+  const r=restaurants.find(x=>x.id===p.restaurant_id);
+  return `<div class="item">
+  ${p.image_url?`<img src="${escapeHTML(p.image_url)}">`:""}
+  <b>${escapeHTML(p.name)}</b><br>
+  السعر: ${p.price} ريال<br>
+  <small>${escapeHTML(r?.name||"")} — ${p.is_available?"متاح":"غير متاح"}</small>
+  <div class="row">
+  <button onclick="editProduct('${p.id}')">تعديل</button>
+  <button class="danger" onclick="deleteProduct('${p.id}')">حذف</button>
+  </div>
+  </div>`;
+ }).join("");
+}
+
+async function saveProduct(){
+ try{
+  const id=document.getElementById("productId").value;
+  const restaurant_id=document.getElementById("productRestaurant").value;
+  const category_id=document.getElementById("productCategory").value;
+  const name=document.getElementById("productName").value.trim();
+  const price=Number(document.getElementById("productPrice").value);
+
+  if(!restaurant_id || !category_id){alert("اختر المطعم والقسم");return;}
+  if(!name || !Number.isFinite(price) || price<0){
+   alert("أدخل اسم المنتج وسعراً صحيحاً");return;
+  }
+
+  const old=products.find(p=>p.id===id);
+  let image_url=old?.image_url||null;
+  const file=document.getElementById("productImage").files[0];
+  if(file)image_url=await uploadImage(file,"products");
+
+  const record={
+   restaurant_id,category_id,name,
+   description:document.getElementById("productDescription").value,
+   price,image_url,
+   is_available:document.getElementById("productAvailable").checked
+  };
+
+  const result=id
+   ?await db.from("menu_items").update(record).eq("id",id)
+   :await db.from("menu_items").insert(record);
+
+  if(result.error)throw result.error;
+  clearProductForm();
+  await loadProducts();
+  message("تم حفظ المنتج بنجاح");
+ }catch(e){message("خطأ: "+e.message);}
+}
+
+function editProduct(id){
+ const p=products.find(x=>x.id===id);
+ if(!p)return;
+
+ document.getElementById("productId").value=p.id;
+ document.getElementById("productRestaurant").value=p.restaurant_id;
+ loadProductCategories().then(()=>{
+  document.getElementById("productCategory").value=p.category_id;
+ });
+ document.getElementById("productName").value=p.name||"";
+ document.getElementById("productDescription").value=p.description||"";
+ document.getElementById("productPrice").value=p.price;
+ document.getElementById("productAvailable").checked=p.is_available;
+ window.scrollTo(0,document.body.scrollHeight);
+}
+
+function clearProductForm(){
+ ["productId","productName","productDescription","productPrice"]
+ .forEach(id=>document.getElementById(id).value="");
+ document.getElementById("productImage").value="";
+ document.getElementById("productAvailable").checked=true;
+}
+
+async function deleteProduct(id){
+ if(!confirm("هل تريد حذف المنتج؟"))return;
+ const {error}=await db.from("menu_items").delete().eq("id",id);
+ if(error){message("تعذر الحذف: "+error.message);return;}
+ await loadProducts();
+ message("تم حذف المنتج");
+}
+
+function escapeHTML(value){
+ return String(value??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ })[c]);
+}
+
+checkSession();
+</script>
+</body>
+</html>
